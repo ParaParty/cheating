@@ -5,44 +5,67 @@ using namespace std;
 
 struct Job
 {
-  string name; // ×÷ÒµÃû
-  int progress = 0; // ½øÕ¹
-  int demand; // ×÷ÒµĞèÇó
+  string name; // ä½œä¸šå
+  int progress = 0; // è¿›å±•
+  int demand; // ä½œä¸šéœ€æ±‚
   Job(string name, int demand) : name(name), demand(demand) {}
 };
 
-Job *cjob = nullptr; // Õ¼ÓÃÁÙ½ç×ÊÔ´µÄµ±Ç°×÷Òµ
-vector<Job *> waiting; // ×÷ÒµµÈ´ı¶ÓÁĞ
+Job *cjob = nullptr; // å ç”¨ä¸´ç•Œèµ„æºçš„å½“å‰ä½œä¸š
+vector<Job *> waiting; // ä½œä¸šç­‰å¾…é˜Ÿåˆ—
+auto locked = false; // èµ„æºé”
 
-void action() { // Õ¼ÓÃÁÙ½ç×ÊÔ´µÄĞĞÎª
+void lock() { locked = true; }
+void unlock() { locked = false; }
+
+void printWaiting() {
+  for (auto j : waiting) cout << j->name << " ";
+  cout << endl;
+}
+
+void action() { // å ç”¨ä¸´ç•Œèµ„æºçš„è¡Œä¸º
   while (true) {
     if (cjob != nullptr) {
       while (cjob->progress < cjob->demand) {
+        while (locked);
+        lock();
         this_thread::sleep_for(chrono::seconds(1));
         cjob->progress++;
         cout << "Job " << cjob->name << " is working: " << cjob->progress << "/" << cjob->demand << endl;
+        unlock();
       }
+      while (locked);
+      lock();
       cout << "Job " << cjob->name << " finished." << endl;
       cjob = nullptr;
+      unlock();
     } else if (!waiting.empty()) {
+      while (locked);
+      lock();
       cjob = waiting.front();
       waiting.erase(waiting.begin());
       cout << "Job " << cjob->name << " started." << endl;
+      unlock();
     }
   }
 }
 
 void join(Job *job) {
-  if (waiting.empty()) waiting.push_back(job);
+  auto flag = true;
   for (auto iter = waiting.begin(); iter != waiting.end(); iter++) {
     if (job->demand < (*iter)->demand) {
       waiting.insert(iter, job);
+      flag = false;
       break;
     }
   }
+  if (flag) waiting.push_back(job);
+  // printWaiting();
 }
 
-void arrive(Job *job) { // ×÷Òµµ½´ï
+void arrive(Job *job) { // ä½œä¸šåˆ°è¾¾
+  while (locked);
+  lock();
   cout << "Job " << job->name << " arrived." << endl;
   if (cjob == nullptr) join(job);
   else if (job->demand < cjob->demand) {
@@ -50,17 +73,18 @@ void arrive(Job *job) { // ×÷Òµµ½´ï
     join(cjob);
     cjob = job;
   } else join(job);
+  unlock();
 }
 
 int main() {
   thread p(action);
-  arrive(new Job("A", 5));
-  this_thread::sleep_for(chrono::seconds(2)); // C++11Ğ´·¨
-  arrive(new Job("B", 7));
-  this_thread::sleep_for(2000ms);
-  arrive(new Job("C", 3));
-  this_thread::sleep_for(7000ms);
-  arrive(new Job("D", 4));
+  arrive(new Job("A", 8));
+  this_thread::sleep_for(chrono::seconds(1));
+  arrive(new Job("B", 4));
+  this_thread::sleep_for(chrono::seconds(1));
+  arrive(new Job("C", 9));
+  this_thread::sleep_for(chrono::seconds(1));
+  arrive(new Job("D", 5));
   p.join();
   return 0;
 }
